@@ -51,9 +51,6 @@ visualizador-eventos-geot/
 ├── README.md                   # Documentación del proyecto
 ├── .gitignore                  # Archivos a ignorar en Git
 ├── plan_implementacion.md      # Seguimiento del desarrollo
-├── data-input/                 # Archivos Excel de entrada
-│   ├── Listado de Eventos [2025.1 - 2025.22] - 07_07_2025.xlsx
-│   └── Listado de Alertas de Seguridad [2025.1 - 2025.95] - 07_07_2025.xlsx
 └── src/                        # Código fuente modular
     ├── data_loader.py          # Carga y procesamiento de datos
     ├── visualizations.py       # Funciones de visualización
@@ -90,12 +87,6 @@ visualizador-eventos-geot/
    pip install -r requirements.txt
    ```
 
-4. **Colocar archivos de datos**
-   - Crear carpeta `data-input/` en la raíz del proyecto
-   - Colocar los archivos Excel en esta carpeta:
-     - `Listado de Eventos [2025.1 - 2025.22] - 07_07_2025.xlsx`
-     - `Listado de Alertas de Seguridad [2025.1 - 2025.95] - 07_07_2025.xlsx`
-
 ## 🚀 Uso de la Aplicación
 
 ### Ejecutar la aplicación
@@ -104,6 +95,17 @@ streamlit run app.py
 ```
 
 La aplicación se abrirá automáticamente en tu navegador web en `http://localhost:8501`
+
+### 📁 Cargar Datos
+
+La aplicación requiere que subas tus propios archivos Excel con los datos:
+
+1. **En la barra lateral**, encontrarás la sección "📁 Cargar Archivos"
+2. **Sube al menos un archivo**:
+   - **📊 Eventos Geotécnicos**: Archivo Excel con datos de eventos ocurridos
+   - **🚨 Alertas de Seguridad**: Archivo Excel con datos de alertas y su estado
+3. **Formatos soportados**: `.xlsx`, `.xls`
+4. **Una vez cargados**, la aplicación procesará automáticamente los datos
 
 ### Navegación por la Interfaz
 

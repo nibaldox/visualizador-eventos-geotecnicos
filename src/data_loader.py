@@ -22,16 +22,13 @@ class DataLoader:
     Clase para cargar y procesar datos de eventos geotécnicos y alertas de seguridad
     """
     
-    def __init__(self, data_path: str = "data-input"):
+    def __init__(self):
         """
         Inicializar el cargador de datos
         
-        Args:
-            data_path (str): Ruta a la carpeta que contiene los archivos Excel
+        Esta clase se encarga de procesar archivos Excel subidos por el usuario
+        con datos de eventos geotécnicos y alertas de seguridad.
         """
-        self.data_path = data_path
-        self.eventos_file = "Listado de Eventos [2025.1 - 2025.22] - 07_07_2025.xlsx"
-        self.alertas_file = "Listado de Alertas de Seguridad [2025.1 - 2025.95] - 07_07_2025.xlsx"
     
     def load_eventos_from_upload(self, uploaded_file) -> Optional[pd.DataFrame]:
         """
@@ -249,71 +246,7 @@ class DataLoader:
         
         return df
     
-    def load_eventos(self) -> Optional[pd.DataFrame]:
-        """
-        Cargar datos de eventos geotécnicos desde archivo Excel
-        
-        Returns:
-            pd.DataFrame: DataFrame con los datos de eventos o None si hay error
-        """
-        try:
-            file_path = os.path.join(self.data_path, self.eventos_file)
-            
-            if not os.path.exists(file_path):
-                logger.error(f"Archivo de eventos no encontrado: {file_path}")
-                return None
-            
-            # Cargar datos
-            df = pd.read_excel(file_path)
-            
-            # Procesar datos usando el método común
-            df = self._process_eventos_data(df)
-            
-            logger.info(f"Eventos cargados exitosamente: {len(df)} registros")
-            return df
-            
-        except Exception as e:
-            logger.error(f"Error al cargar eventos: {str(e)}")
-            return None
-    
-    def load_alertas(self) -> Optional[pd.DataFrame]:
-        """
-        Cargar datos de alertas de seguridad desde archivo Excel
-        
-        Returns:
-            pd.DataFrame: DataFrame con los datos de alertas o None si hay error
-        """
-        try:
-            file_path = os.path.join(self.data_path, self.alertas_file)
-            
-            if not os.path.exists(file_path):
-                logger.error(f"Archivo de alertas no encontrado: {file_path}")
-                return None
-            
-            # Cargar datos
-            df = pd.read_excel(file_path)
-            
-            # Procesar datos usando el método común
-            df = self._process_alertas_data(df)
-            
-            logger.info(f"Alertas cargadas exitosamente: {len(df)} registros")
-            return df
-            
-        except Exception as e:
-            logger.error(f"Error al cargar alertas: {str(e)}")
-            return None
-    
-    def load_all_data(self) -> Tuple[Optional[pd.DataFrame], Optional[pd.DataFrame]]:
-        """
-        Cargar todos los datos (eventos y alertas)
-        
-        Returns:
-            Tuple[pd.DataFrame, pd.DataFrame]: Tupla con DataFrames de eventos y alertas
-        """
-        eventos_df = self.load_eventos()
-        alertas_df = self.load_alertas()
-        
-        return eventos_df, alertas_df
+
     
     def get_data_summary(self, eventos_df: pd.DataFrame, alertas_df: pd.DataFrame) -> dict:
         """

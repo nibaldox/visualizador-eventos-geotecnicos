@@ -49,9 +49,14 @@ def main():
     # Sección de carga de archivos
     st.sidebar.header("📁 Cargar Archivos")
     
+    st.sidebar.markdown("**Instrucciones:**")
+    st.sidebar.markdown("• Sube los archivos Excel con tus datos")
+    st.sidebar.markdown("• Se requiere al menos un archivo para usar la aplicación")
+    st.sidebar.markdown("---")
+    
     # Botón para cargar archivo de eventos
     eventos_file = st.sidebar.file_uploader(
-        "Subir archivo de Eventos Geotécnicos",
+        "📊 Subir archivo de Eventos Geotécnicos",
         type=['xlsx', 'xls'],
         help="Archivo Excel con datos de eventos geotécnicos",
         key="eventos_uploader"
@@ -59,29 +64,18 @@ def main():
     
     # Botón para cargar archivo de alertas
     alertas_file = st.sidebar.file_uploader(
-        "Subir archivo de Alertas de Seguridad",
+        "🚨 Subir archivo de Alertas de Seguridad",
         type=['xlsx', 'xls'],
         help="Archivo Excel con datos de alertas de seguridad",
         key="alertas_uploader"
     )
     
-    # Opción para usar archivos por defecto
-    usar_archivos_defecto = st.sidebar.checkbox(
-        "Usar archivos por defecto de la carpeta data-input/",
-        value=True,
-        help="Si está marcado, usará los archivos de ejemplo en la carpeta data-input/"
-    )
-    
-    # Cargar datos según la opción seleccionada
+    # Cargar datos desde archivos subidos
     eventos_df = None
     alertas_df = None
     
-    with st.spinner("Cargando datos..."):
-        if usar_archivos_defecto:
-            # Usar archivos por defecto
-            eventos_df, alertas_df = data_loader.load_all_data()
-        else:
-            # Usar archivos subidos
+    if eventos_file is not None or alertas_file is not None:
+        with st.spinner("Cargando datos..."):
             if eventos_file is not None:
                 eventos_df = data_loader.load_eventos_from_upload(eventos_file)
             if alertas_file is not None:
@@ -89,9 +83,12 @@ def main():
     
     # Verificar que se hayan cargado los datos
     if eventos_df is None and alertas_df is None:
-        st.error("❌ No se han cargado datos. Por favor:")
-        st.error("• Marca 'Usar archivos por defecto' para usar los archivos de ejemplo, o")
-        st.error("• Sube tus propios archivos Excel usando los botones de carga")
+        st.info("👋 **¡Bienvenido al Visualizador de Eventos Geotécnicos!**")
+        st.info("📁 Para comenzar, sube al menos un archivo Excel usando los botones de la barra lateral.")
+        st.info("📋 **Formatos soportados:** .xlsx, .xls")
+        st.info("📊 **Tipos de archivo:**")
+        st.info("• **Eventos Geotécnicos**: Datos de eventos ocurridos en la mina")
+        st.info("• **Alertas de Seguridad**: Datos de alertas y su estado")
         st.stop()
     
     if eventos_df is None:
