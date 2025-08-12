@@ -20,9 +20,21 @@ sys.path.append(os.path.join(os.path.dirname(__file__), 'src'))
 from data_loader import DataLoader
 from src.visualizations import (
     create_dashboard_metrics, create_events_timeline, create_events_scatter,
-    create_alerts_scatter, create_correlation_analysis, create_failure_height_analysis
+    create_alerts_scatter, create_correlation_analysis, create_dashboard_events_map,
+    create_consolidated_scatter, create_3d_map, create_failure_height_analysis,
+    create_velocity_analysis
 )
-from utils import format_date, validate_coordinates
+from src.utils import format_date, validate_coordinates
+from src.dxf_loader import DXFLoader
+from src.dxf_visualizations import (
+    create_dxf_base_map, create_dxf_with_events_map, 
+    create_dxf_layers_summary, create_dxf_statistics_chart
+)
+from src.stl_loader import STLLoader
+from src.stl_visualizations import (
+    create_stl_mesh_figure,
+    render_stl_metrics,
+)
 
 # Configuración de la página
 st.set_page_config(
@@ -46,49 +58,31 @@ def main():
     # Inicializar el cargador de datos
     data_loader = DataLoader()
     
-    # Sección de carga de archivos
-    st.sidebar.header("📁 Cargar Archivos")
+    # Carga de datos desde archivos subidos (obligatorio)
+    with st.expander("📥 Cargar datos (Eventos y Alertas)", expanded=True):
+        colu1, colu2 = st.columns([2,2])
+        with colu1:
+            eventos_upload = st.file_uploader(
+                "Subir archivo de Eventos (Excel/CSV/TXT)",
+                type=["xlsx", "xls", "csv", "txt"],
+                key="eventos_upload"
+            )
+        with colu2:
+            alertas_upload = st.file_uploader(
+                "Subir archivo de Alertas (Excel/CSV/TXT)",
+                type=["xlsx", "xls", "csv", "txt"],
+                key="alertas_upload"
+            )
+
+    with st.spinner("Cargando datos..."):
+        if (eventos_upload is None) or (alertas_upload is None):
+            st.error("Debes subir ambos archivos: Eventos y Alertas (Excel/CSV/TXT)")
+            st.stop()
+        eventos_df = data_loader.load_eventos_from_upload(eventos_upload)
+        alertas_df = data_loader.load_alertas_from_upload(alertas_upload)
     
-    st.sidebar.markdown("**Instrucciones:**")
-    st.sidebar.markdown("• Sube los archivos Excel con tus datos")
-    st.sidebar.markdown("• Se requiere al menos un archivo para usar la aplicación")
-    st.sidebar.markdown("---")
-    
-    # Botón para cargar archivo de eventos
-    eventos_file = st.sidebar.file_uploader(
-        "📊 Subir archivo de Eventos Geotécnicos",
-        type=['xlsx', 'xls'],
-        help="Archivo Excel con datos de eventos geotécnicos",
-        key="eventos_uploader"
-    )
-    
-    # Botón para cargar archivo de alertas
-    alertas_file = st.sidebar.file_uploader(
-        "🚨 Subir archivo de Alertas de Seguridad",
-        type=['xlsx', 'xls'],
-        help="Archivo Excel con datos de alertas de seguridad",
-        key="alertas_uploader"
-    )
-    
-    # Cargar datos desde archivos subidos
-    eventos_df = None
-    alertas_df = None
-    
-    if eventos_file is not None or alertas_file is not None:
-        with st.spinner("Cargando datos..."):
-            if eventos_file is not None:
-                eventos_df = data_loader.load_eventos_from_upload(eventos_file)
-            if alertas_file is not None:
-                alertas_df = data_loader.load_alertas_from_upload(alertas_file)
-    
-    # Verificar que se hayan cargado los datos
-    if eventos_df is None and alertas_df is None:
-        st.info("👋 **¡Bienvenido al Visualizador de Eventos Geotécnicos!**")
-        st.info("📁 Para comenzar, sube al menos un archivo Excel usando los botones de la barra lateral.")
-        st.info("📋 **Formatos soportados:** .xlsx, .xls")
-        st.info("📊 **Tipos de archivo:**")
-        st.info("• **Eventos Geotécnicos**: Datos de eventos ocurridos en la mina")
-        st.info("• **Alertas de Seguridad**: Datos de alertas y su estado")
+    if eventos_df is None or alertas_df is None:
+        st.error("❌ Error al cargar los archivos subidos. Verifica el formato y las columnas requeridas")
         st.stop()
     
     if eventos_df is None:
@@ -167,27 +161,40 @@ def main():
     eventos_filtrados = eventos_df.copy()
     alertas_filtradas = alertas_df.copy()
     
-    # Aplicar filtros de fecha
+    # Aplicar filtros de fecha para eventos
     if 'Fecha' in eventos_df.columns and len(fechas_validas) > 0 and fecha_inicio is not None and fecha_fin is not None:
         eventos_filtrados = eventos_filtrados[
             (eventos_filtrados['Fecha'] >= pd.to_datetime(fecha_inicio)) &
             (eventos_filtrados['Fecha'] <= pd.to_datetime(fecha_fin))
         ]
     
-    # Aplicar filtros de zona
+    # Aplicar filtros de fecha para alertas
+    if 'Fecha Declarada' in alertas_df.columns and fecha_inicio is not None and fecha_fin is not None:
+        alertas_filtradas = alertas_filtradas[
+            (alertas_filtradas['Fecha Declarada'] >= pd.to_datetime(fecha_inicio)) &
+            (alertas_filtradas['Fecha Declarada'] <= pd.to_datetime(fecha_fin))
+        ]
+    
+    # Aplicar filtros de zona para eventos
     if 'Zona monitoreo' in eventos_df.columns and zonas_seleccionadas:
         eventos_filtrados = eventos_filtrados[
             eventos_filtrados['Zona monitoreo'].isin(zonas_seleccionadas)
         ]
     
-    # Aplicar filtros de tipo
+    # Aplicar filtros de zona para alertas (usando la columna correcta)
+    if 'Zona de Monitoreo' in alertas_df.columns and zonas_seleccionadas:
+        alertas_filtradas = alertas_filtradas[
+            alertas_filtradas['Zona de Monitoreo'].isin(zonas_seleccionadas)
+        ]
+    
+    # Aplicar filtros de tipo para eventos
     if 'Tipo' in eventos_df.columns and tipos_seleccionados:
         eventos_filtrados = eventos_filtrados[
             eventos_filtrados['Tipo'].isin(tipos_seleccionados)
         ]
     
     # Pestañas principales
-    tab1, tab2, tab3, tab4 = st.tabs(["📊 Dashboard", "📈 Eventos", "🚨 Alertas", "📋 Datos"])
+    tab1, tab2, tab3, tab4, tab5, tab6 = st.tabs(["📊 Dashboard", "📈 Eventos", "🚨 Alertas", "🗂️ DXF", "🔺 STL", "📋 Datos"])
     
     with tab1:
         st.header("Dashboard General")
@@ -278,6 +285,111 @@ def main():
             st.warning("No hay alertas que mostrar con los filtros seleccionados")
     
     with tab4:
+        st.header("🗂️ Visualización DXF")
+        
+        # Carga de archivo DXF
+        dxf_file = st.file_uploader(
+            "📁 Subir archivo DXF",
+            type=['dxf'],
+            help="Archivo DXF con información geométrica",
+            key="dxf_uploader"
+        )
+        
+        if dxf_file is not None:
+            try:
+                # Cargar archivo DXF
+                dxf_loader = DXFLoader()
+                dxf_doc = dxf_loader.load_dxf_from_upload(dxf_file)
+                
+                if dxf_doc is not None:
+                    st.success("✅ Archivo DXF cargado exitosamente")
+                    
+                    # Pestañas DXF
+                    dxf_tab1, dxf_tab2, dxf_tab3, dxf_tab4 = st.tabs([
+                        "🗺️ Mapa Base", 
+                        "📍 Con Eventos", 
+                        "📊 Estadísticas", 
+                        "📋 Capas"
+                    ])
+                    
+                    with dxf_tab1:
+                        create_dxf_base_map(dxf_doc)
+                    
+                    with dxf_tab2:
+                        if eventos_df is not None and len(eventos_df) > 0:
+                            create_dxf_with_events_map(dxf_doc, eventos_df)
+                        else:
+                            st.warning("No hay datos de eventos para mostrar en el mapa DXF")
+                    
+                    with dxf_tab3:
+                        create_dxf_statistics_chart(dxf_doc)
+                    
+                    with dxf_tab4:
+                        create_dxf_layers_summary(dxf_doc)
+                        
+                else:
+                    st.error("❌ Error al procesar el archivo DXF")
+                    
+            except Exception as e:
+                st.error(f"❌ Error al cargar el archivo DXF: {str(e)}")
+        else:
+            st.info("👆 Sube un archivo DXF para comenzar la visualización")
+    
+    with tab5:
+        st.header("🔺 Visualización STL")
+        
+        # Carga de archivo STL
+        stl_file = st.file_uploader(
+            "📁 Subir archivo STL",
+            type=['stl'],
+            help="Archivo STL con modelo 3D",
+            key="stl_uploader"
+        )
+        
+        if stl_file is not None:
+            try:
+                # Cargar archivo STL
+                stl_loader = STLLoader()
+                mesh_data = stl_loader.load_stl_from_upload(stl_file)
+                
+                if mesh_data is not None:
+                    st.success("✅ Archivo STL cargado exitosamente")
+                    
+                    # Pestañas STL
+                    stl_tab1, stl_tab2 = st.tabs(["🎯 Visualización 3D", "📊 Métricas"])
+                    
+                    with stl_tab1:
+                        # Crear visualización 3D
+                        fig_3d = create_stl_mesh_figure(mesh_data)
+                        st.plotly_chart(fig_3d, use_container_width=True)
+                        
+                        # Opciones de exportación
+                        st.subheader("📤 Exportar")
+                        if st.button("💾 Exportar a OBJ"):
+                            try:
+                                obj_content = stl_loader.export_to_obj(mesh_data)
+                                st.download_button(
+                                    label="📥 Descargar archivo OBJ",
+                                    data=obj_content,
+                                    file_name=f"modelo_3d_{datetime.now().strftime('%Y%m%d_%H%M%S')}.obj",
+                                    mime="application/octet-stream"
+                                )
+                            except Exception as e:
+                                st.error(f"Error al exportar: {str(e)}")
+                    
+                    with stl_tab2:
+                        # Mostrar métricas del modelo STL
+                        render_stl_metrics(mesh_data)
+                        
+                else:
+                    st.error("❌ Error al procesar el archivo STL")
+                    
+            except Exception as e:
+                st.error(f"❌ Error al cargar el archivo STL: {str(e)}")
+        else:
+            st.info("👆 Sube un archivo STL para comenzar la visualización 3D")
+    
+    with tab6:
         st.header("Datos Detallados")
         
         # Subtabs para eventos y alertas

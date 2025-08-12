@@ -49,6 +49,38 @@ class DXFLoader:
             st.error(f"Error al cargar archivo DXF: {e}")
             return False
     
+    def load_dxf_from_upload(self, uploaded_file):
+        """
+        Cargar archivo DXF desde archivo subido por Streamlit
+        
+        Args:
+            uploaded_file: Archivo subido desde st.file_uploader
+            
+        Returns:
+            ezdxf.document.Drawing: Documento DXF cargado o None si hay error
+        """
+        try:
+            if uploaded_file is None:
+                return None
+                
+            # Leer el contenido del archivo
+            file_content = uploaded_file.read()
+            uploaded_file.seek(0)  # Resetear la posición
+            
+            # Crear un archivo temporal en memoria
+            from io import BytesIO
+            file_stream = BytesIO(file_content)
+            
+            # Cargar el documento DXF
+            self.doc = ezdxf.readfile(file_stream)
+            logger.info(f"Archivo DXF cargado exitosamente desde upload: {uploaded_file.name}")
+            return self.doc
+            
+        except Exception as e:
+            logger.error(f"Error al cargar archivo DXF desde upload: {str(e)}")
+            st.error(f"Error al cargar archivo DXF: {str(e)}")
+            return None
+    
     def load_dxf_from_bytes(self, file_bytes: bytes, filename: str) -> bool:
         """
         Cargar archivo DXF desde bytes (para Streamlit file uploader)
