@@ -11,8 +11,7 @@ import os
 import streamlit as st
 from typing import Tuple, Optional
 import logging
-import warnings
-from pathlib import Path
+from io import BytesIO
 
 # Configurar logging
 logging.basicConfig(level=logging.INFO)
@@ -23,392 +22,231 @@ class DataLoader:
     Clase para cargar y procesar datos de eventos geotécnicos y alertas de seguridad
     """
     
-    def __init__(self, data_path: str = "data-input"):
+    def __init__(self):
         """
         Inicializar el cargador de datos
         
-        Args:
-            data_path (str): Ruta a la carpeta que contiene los archivos Excel
+        Esta clase se encarga de procesar archivos Excel subidos por el usuario
+        con datos de eventos geotécnicos y alertas de seguridad.
         """
-        self.data_path = data_path
-        self.eventos_file = "Listado de Eventos [2025.1 - 2025.22] - 07_07_2025.xlsx"
-        self.alertas_file = "Listado de Alertas de Seguridad [2025.1 - 2025.95] - 07_07_2025.xlsx"
     
-    def load_eventos(self) -> Optional[pd.DataFrame]:
+    def load_eventos_from_upload(self, uploaded_file) -> Optional[pd.DataFrame]:
         """
-        Cargar datos de eventos geotécnicos desde archivo Excel
+        Cargar datos de eventos geotécnicos desde archivo subido
         
+        Args:
+            uploaded_file: Archivo subido desde st.file_uploader
+            
         Returns:
             pd.DataFrame: DataFrame con los datos de eventos o None si hay error
         """
         try:
-            file_path = os.path.join(self.data_path, self.eventos_file)
-            
-            if not os.path.exists(file_path):
-                logger.error(f"Archivo de eventos no encontrado: {file_path}")
+            if uploaded_file is None:
                 return None
-            
-            # Usar caché basado en mtime del archivo
-            mtime = os.path.getmtime(file_path)
-
-            @st.cache_data(show_spinner=False)
-            def _read_excel_cached(path: str, ts: float) -> pd.DataFrame:
-                return pd.read_excel(path)
-
-            # Cargar datos
-            df = _read_excel_cached(file_path, mtime)
-            
-            # Validar columnas esperadas
-            expected_columns = [
-                'id', 'Tipo', 'Vigilante', 'Fecha', 'Fecha UTC', 'Zona monitoreo',
-                'Pared', 'Este', 'Norte', 'Cota', 'Alerta de Seguridad Asociada',
-                'Tiempo de Activación (h)', 'Altura Banco (m)', 'Altura Falla (m)',
-                'Desplazamiento Acumulado (mm)', 'Velocidad Promedio (mm/h)',
-                'Velocidad Máxima Últimas 12hrs. (mm/h)', 
-                'Velocidad Anterior a Velocidad Máxima (mm/h)',
-                'Volumen (ton)', 'Detectado por Sistema', 'Radar Principal',
-                'Mecanismos falla', 'Fotografía después del evento',
-                'Gráfico de desplazamientos Vs. tiempo'
-            ]
-            
-            # Verificar que las columnas principales existan
-            missing_columns = [col for col in expected_columns[:10] if col not in df.columns]
-            if missing_columns:
-                logger.info(f"Columnas faltantes en eventos: {missing_columns}")
-            
-            # Procesar fechas (formato dd/mm/aaaa hh:mm)
-            def parse_date_flexible(date_series):
-                """Parsear fechas con múltiples formatos posibles"""
-                if date_series.empty:
-                    return date_series
                 
-                # Limpiar caracteres especiales y espacios extra
-                cleaned_series = date_series.astype(str).str.strip()
-                cleaned_series = cleaned_series.str.replace(r'^[^\d]', '', regex=True)  # Remover caracteres no numéricos al inicio
-                
-                # Intentar diferentes formatos
-                formats_to_try = [
-                    '%d/%m/%Y %H:%M',  # dd/mm/aaaa hh:mm
-                    '%d/%m/%Y',        # dd/mm/aaaa
-                    '%d-%m-%Y %H:%M',  # dd-mm-aaaa hh:mm
-                    '%d-%m-%Y',        # dd-mm-aaaa
-                ]
-                
-                result = pd.Series([pd.NaT] * len(cleaned_series), index=cleaned_series.index)
-                
-                for fmt in formats_to_try:
-                    mask = result.isna()
-                    if mask.any():
-                        try:
-                            result[mask] = pd.to_datetime(cleaned_series[mask], format=fmt, errors='coerce')
-                        except:
-                            continue
-                
-                # Si aún hay valores sin parsear, intentar formato automático
-                mask = result.isna()
-                if mask.any():
-                    with warnings.catch_warnings():
-                        warnings.simplefilter("ignore", UserWarning)
-                        result[mask] = pd.to_datetime(cleaned_series[mask], errors='coerce', dayfirst=True, cache=True)
-                
-                return result
+            # Cargar datos desde el archivo subido
+            df = pd.read_excel(uploaded_file)
             
-            if 'Fecha' in df.columns:
-                df['Fecha'] = parse_date_flexible(df['Fecha'])
+            # Procesar datos igual que en load_eventos
+            df = self._process_eventos_data(df)
             
-            if 'Fecha UTC' in df.columns:
-                df['Fecha UTC'] = parse_date_flexible(df['Fecha UTC'])
-            
-            # Procesar coordenadas numéricas
-            numeric_columns = ['Este', 'Norte', 'Cota', 'Altura Banco (m)', 
-                             'Altura Falla (m)', 'Desplazamiento Acumulado (mm)',
-                             'Velocidad Promedio (mm/h)', 'Volumen (ton)']
-            
-            for col in numeric_columns:
-                if col in df.columns:
-                    df[col] = pd.to_numeric(df[col], errors='coerce')
-            
-            logger.info(f"Eventos cargados exitosamente: {len(df)} registros")
+            logger.info(f"Eventos cargados exitosamente desde archivo subido: {len(df)} registros")
             return df
             
         except Exception as e:
-            logger.error(f"Error al cargar eventos: {str(e)}")
+            logger.error(f"Error al cargar eventos desde archivo subido: {str(e)}")
+            st.error(f"Error al cargar archivo de eventos: {str(e)}")
             return None
     
-    def load_alertas(self) -> Optional[pd.DataFrame]:
+    def load_alertas_from_upload(self, uploaded_file) -> Optional[pd.DataFrame]:
         """
-        Cargar datos de alertas de seguridad desde archivo Excel
+        Cargar datos de alertas desde archivo subido
         
+        Args:
+            uploaded_file: Archivo subido desde st.file_uploader
+            
         Returns:
             pd.DataFrame: DataFrame con los datos de alertas o None si hay error
         """
         try:
-            file_path = os.path.join(self.data_path, self.alertas_file)
-            
-            if not os.path.exists(file_path):
-                logger.error(f"Archivo de alertas no encontrado: {file_path}")
+            if uploaded_file is None:
                 return None
-            
-            # Usar caché basado en mtime del archivo
-            mtime = os.path.getmtime(file_path)
-
-            @st.cache_data(show_spinner=False)
-            def _read_excel_cached(path: str, ts: float) -> pd.DataFrame:
-                return pd.read_excel(path)
-
-            # Cargar datos
-            df = _read_excel_cached(file_path, mtime)
-            
-            # Validar columnas esperadas
-            expected_columns = [
-                'id', 'Estatus', 'Vigilante', 'Fecha Declarada', 'Fecha Declarada UTC',
-                'Evento', 'Comportamiento o Velocidad', 'Nivel de Exposición',
-                'Versión Original', 'Zona de Monitoreo', 'Localización General',
-                'Pared', 'Este', 'Norte', 'Cota', 'Observaciones', 'Estado',
-                'Fecha de Cierre', 'Responsable de Cierre', 'Geotécnico Operativo',
-                'Notificación Telefónica', 'Notificación por Correo',
-                'Desplazamiento Últimas 12 hrs. (mm)',
-                'Velocidad Promedio Últimas 12 hrs. (mm/h)',
-                'Velocidad Máxima Últimas 12 hrs. (mm/h)'
-            ]
-            
-            # Verificar que las columnas principales existan
-            missing_columns = [col for col in expected_columns[:10] if col not in df.columns]
-            if missing_columns:
-                logger.info(f"Columnas faltantes en alertas: {missing_columns}")
-            
-            # Procesar fechas (formato dd/mm/aaaa hh:mm)
-            def parse_date_flexible_alerts(date_series):
-                """Parsear fechas con múltiples formatos posibles para alertas"""
-                if date_series.empty:
-                    return date_series
                 
-                # Limpiar caracteres especiales y espacios extra
-                cleaned_series = date_series.astype(str).str.strip()
-                cleaned_series = cleaned_series.str.replace(r'^[^\d]', '', regex=True)  # Remover caracteres no numéricos al inicio
-                
-                # Intentar diferentes formatos
-                formats_to_try = [
-                    '%d/%m/%Y %H:%M',  # dd/mm/aaaa hh:mm
-                    '%d/%m/%Y',        # dd/mm/aaaa
-                    '%d-%m-%Y %H:%M',  # dd-mm-aaaa hh:mm
-                    '%d-%m-%Y',        # dd-mm-aaaa
-                ]
-                
-                result = pd.Series([pd.NaT] * len(cleaned_series), index=cleaned_series.index)
-                
-                for fmt in formats_to_try:
-                    mask = result.isna()
-                    if mask.any():
-                        try:
-                            result[mask] = pd.to_datetime(cleaned_series[mask], format=fmt, errors='coerce')
-                        except:
-                            continue
-                
-                # Si aún hay valores sin parsear, intentar formato automático
-                mask = result.isna()
-                if mask.any():
-                    with warnings.catch_warnings():
-                        warnings.simplefilter("ignore", UserWarning)
-                        result[mask] = pd.to_datetime(cleaned_series[mask], errors='coerce', dayfirst=True, cache=True)
-                
-                return result
+            # Cargar datos desde el archivo subido
+            df = pd.read_excel(uploaded_file)
             
-            date_columns = ['Fecha Declarada', 'Fecha Declarada UTC', 'Fecha de Cierre']
-            for col in date_columns:
-                if col in df.columns:
-                    df[col] = parse_date_flexible_alerts(df[col])
+            # Procesar datos igual que en load_alertas
+            df = self._process_alertas_data(df)
             
-            # Procesar coordenadas numéricas
-            numeric_columns = ['Este', 'Norte', 'Cota', 
-                             'Desplazamiento Últimas 12 hrs. (mm)',
-                             'Velocidad Promedio Últimas 12 hrs. (mm/h)',
-                             'Velocidad Máxima Últimas 12 hrs. (mm/h)']
-            
-            for col in numeric_columns:
-                if col in df.columns:
-                    df[col] = pd.to_numeric(df[col], errors='coerce')
-            
-            logger.info(f"Alertas cargadas exitosamente: {len(df)} registros")
+            logger.info(f"Alertas cargadas exitosamente desde archivo subido: {len(df)} registros")
             return df
             
         except Exception as e:
-            logger.error(f"Error al cargar alertas: {str(e)}")
-            return None
-
-    def load_eventos_from_filelike(self, uploaded_file) -> Optional[pd.DataFrame]:
-        """
-        Cargar eventos desde un archivo subido (Excel/CSV/TXT) usando el uploader de Streamlit.
-
-        Args:
-            uploaded_file: Archivo subido (Streamlit UploadedFile)
-
-        Returns:
-            DataFrame procesado o None si hay error.
-        """
-        try:
-            name = getattr(uploaded_file, 'name', 'uploaded')
-            ext = Path(name).suffix.lower()
-
-            # Leer según extensión
-            if ext in ['.xlsx', '.xls']:
-                df = pd.read_excel(uploaded_file)
-            elif ext in ['.csv']:
-                df = pd.read_csv(uploaded_file)
-            elif ext in ['.txt']:
-                # Intento de inferencia de separador
-                df = pd.read_csv(uploaded_file, sep=None, engine='python')
-            else:
-                st.error(f"Extensión de archivo no soportada para eventos: {ext}")
-                return None
-
-            # Procesamiento similar a load_eventos
-            expected_columns = [
-                'id', 'Tipo', 'Vigilante', 'Fecha', 'Fecha UTC', 'Zona monitoreo',
-                'Pared', 'Este', 'Norte', 'Cota', 'Alerta de Seguridad Asociada',
-                'Tiempo de Activación (h)', 'Altura Banco (m)', 'Altura Falla (m)',
-                'Desplazamiento Acumulado (mm)', 'Velocidad Promedio (mm/h)',
-                'Velocidad Máxima Últimas 12hrs. (mm/h)', 
-                'Velocidad Anterior a Velocidad Máxima (mm/h)',
-                'Volumen (ton)', 'Detectado por Sistema', 'Radar Principal',
-                'Mecanismos falla', 'Fotografía después del evento',
-                'Gráfico de desplazamientos Vs. tiempo'
-            ]
-
-            missing_columns = [col for col in expected_columns[:10] if col not in df.columns]
-            if missing_columns:
-                logger.info(f"Columnas faltantes en eventos (upload): {missing_columns}")
-
-            def parse_date_flexible(date_series):
-                if date_series.empty:
-                    return date_series
-                cleaned_series = date_series.astype(str).str.strip()
-                cleaned_series = cleaned_series.str.replace(r'^[^\d]', '', regex=True)
-                formats_to_try = ['%d/%m/%Y %H:%M', '%d/%m/%Y', '%d-%m-%Y %H:%M', '%d-%m-%Y']
-                result = pd.Series([pd.NaT] * len(cleaned_series), index=cleaned_series.index)
-                for fmt in formats_to_try:
-                    mask = result.isna()
-                    if mask.any():
-                        try:
-                            result[mask] = pd.to_datetime(cleaned_series[mask], format=fmt, errors='coerce')
-                        except Exception:
-                            continue
-                mask = result.isna()
-                if mask.any():
-                    with warnings.catch_warnings():
-                        warnings.simplefilter("ignore", UserWarning)
-                        result[mask] = pd.to_datetime(cleaned_series[mask], errors='coerce', dayfirst=True, cache=True)
-                return result
-
-            if 'Fecha' in df.columns:
-                df['Fecha'] = parse_date_flexible(df['Fecha'])
-            if 'Fecha UTC' in df.columns:
-                df['Fecha UTC'] = parse_date_flexible(df['Fecha UTC'])
-
-            numeric_columns = ['Este', 'Norte', 'Cota', 'Altura Banco (m)', 
-                             'Altura Falla (m)', 'Desplazamiento Acumulado (mm)',
-                             'Velocidad Promedio (mm/h)', 'Volumen (ton)']
-            for col in numeric_columns:
-                if col in df.columns:
-                    df[col] = pd.to_numeric(df[col], errors='coerce')
-
-            logger.info(f"Eventos (upload) cargados: {len(df)} registros")
-            return df
-        except Exception as e:
-            logger.error(f"Error al cargar eventos desde upload: {str(e)}")
-            st.error(f"Error al cargar eventos: {str(e)}")
+            logger.error(f"Error al cargar alertas desde archivo subido: {str(e)}")
+            st.error(f"Error al cargar archivo de alertas: {str(e)}")
             return None
     
-    def load_all_data(self) -> Tuple[Optional[pd.DataFrame], Optional[pd.DataFrame]]:
+    def _process_eventos_data(self, df: pd.DataFrame) -> pd.DataFrame:
         """
-        Cargar todos los datos (eventos y alertas)
+        Procesar datos de eventos geotécnicos
         
-        Returns:
-            Tuple[pd.DataFrame, pd.DataFrame]: Tupla con DataFrames de eventos y alertas
-        """
-        eventos_df = self.load_eventos()
-        alertas_df = self.load_alertas()
-        
-        return eventos_df, alertas_df
-
-    def load_alertas_from_filelike(self, uploaded_file) -> Optional[pd.DataFrame]:
-        """
-        Cargar alertas desde archivo subido (Excel/CSV/TXT).
-
         Args:
-            uploaded_file: Archivo subido de Streamlit
-
+            df (pd.DataFrame): DataFrame crudo de eventos
+            
         Returns:
-            DataFrame procesado o None si hay error.
+            pd.DataFrame: DataFrame procesado
         """
-        try:
-            name = getattr(uploaded_file, 'name', 'uploaded')
-            ext = Path(name).suffix.lower()
-
-            if ext in ['.xlsx', '.xls']:
-                df = pd.read_excel(uploaded_file)
-            elif ext in ['.csv']:
-                df = pd.read_csv(uploaded_file)
-            elif ext in ['.txt']:
-                df = pd.read_csv(uploaded_file, sep=None, engine='python')
-            else:
-                st.error(f"Extensión de archivo no soportada para alertas: {ext}")
-                return None
-
-            expected_columns = [
-                'id', 'Estatus', 'Vigilante', 'Fecha Declarada', 'Fecha Declarada UTC',
-                'Evento', 'Comportamiento o Velocidad', 'Nivel de Exposición',
-                'Versión Original', 'Zona de Monitoreo', 'Localización General',
-                'Pared', 'Este', 'Norte', 'Cota', 'Observaciones', 'Estado',
-                'Fecha de Cierre', 'Responsable de Cierre', 'Geotécnico Operativo',
-                'Notificación Telefónica', 'Notificación por Correo',
-                'Desplazamiento Últimas 12 hrs. (mm)',
-                'Velocidad Promedio Últimas 12 hrs. (mm/h)',
-                'Velocidad Máxima Últimas 12 hrs. (mm/h)'
+        # Validar columnas esperadas
+        expected_columns = [
+            'id', 'Tipo', 'Vigilante', 'Fecha', 'Fecha UTC', 'Zona monitoreo',
+            'Pared', 'Este', 'Norte', 'Cota', 'Alerta de Seguridad Asociada',
+            'Tiempo de Activación (h)', 'Altura Banco (m)', 'Altura Falla (m)',
+            'Desplazamiento Acumulado (mm)', 'Velocidad Promedio (mm/h)',
+            'Velocidad Máxima Últimas 12hrs. (mm/h)', 
+            'Velocidad Anterior a Velocidad Máxima (mm/h)',
+            'Volumen (ton)', 'Detectado por Sistema', 'Radar Principal',
+            'Mecanismos falla', 'Fotografía después del evento',
+            'Gráfico de desplazamientos Vs. tiempo'
+        ]
+        
+        # Verificar que las columnas principales existan
+        missing_columns = [col for col in expected_columns[:10] if col not in df.columns]
+        if missing_columns:
+            logger.warning(f"Columnas faltantes en eventos: {missing_columns}")
+        
+        # Procesar fechas (formato dd/mm/aaaa hh:mm)
+        def parse_date_flexible(date_series):
+            """Parsear fechas con múltiples formatos posibles"""
+            if date_series.empty:
+                return date_series
+            
+            # Limpiar caracteres especiales y espacios extra
+            cleaned_series = date_series.astype(str).str.strip()
+            cleaned_series = cleaned_series.str.replace(r'^[^\d]', '', regex=True)  # Remover caracteres no numéricos al inicio
+            
+            # Intentar diferentes formatos
+            formats_to_try = [
+                '%d/%m/%Y %H:%M',  # dd/mm/aaaa hh:mm
+                '%d/%m/%Y',        # dd/mm/aaaa
+                '%d-%m-%Y %H:%M',  # dd-mm-aaaa hh:mm
+                '%d-%m-%Y',        # dd-mm-aaaa
             ]
-            missing_columns = [col for col in expected_columns[:10] if col not in df.columns]
-            if missing_columns:
-                logger.info(f"Columnas faltantes en alertas (upload): {missing_columns}")
-
-            def parse_date_flexible_alerts(date_series):
-                if date_series.empty:
-                    return date_series
-                cleaned_series = date_series.astype(str).str.strip()
-                cleaned_series = cleaned_series.str.replace(r'^[^\d]', '', regex=True)
-                formats_to_try = ['%d/%m/%Y %H:%M', '%d/%m/%Y', '%d-%m-%Y %H:%M', '%d-%m-%Y']
-                result = pd.Series([pd.NaT] * len(cleaned_series), index=cleaned_series.index)
-                for fmt in formats_to_try:
-                    mask = result.isna()
-                    if mask.any():
-                        try:
-                            result[mask] = pd.to_datetime(cleaned_series[mask], format=fmt, errors='coerce')
-                        except Exception:
-                            continue
+            
+            result = pd.Series([pd.NaT] * len(cleaned_series), index=cleaned_series.index)
+            
+            for fmt in formats_to_try:
                 mask = result.isna()
                 if mask.any():
-                    with warnings.catch_warnings():
-                        warnings.simplefilter("ignore", UserWarning)
-                        result[mask] = pd.to_datetime(cleaned_series[mask], errors='coerce', dayfirst=True, cache=True)
-                return result
+                    try:
+                        result[mask] = pd.to_datetime(cleaned_series[mask], format=fmt, errors='coerce')
+                    except:
+                        continue
+            
+            # Si aún hay valores sin parsear, intentar formato automático
+            mask = result.isna()
+            if mask.any():
+                result[mask] = pd.to_datetime(cleaned_series[mask], errors='coerce')
+            
+            return result
+        
+        if 'Fecha' in df.columns:
+            df['Fecha'] = parse_date_flexible(df['Fecha'])
+        
+        if 'Fecha UTC' in df.columns:
+            df['Fecha UTC'] = parse_date_flexible(df['Fecha UTC'])
+        
+        # Procesar coordenadas numéricas
+        numeric_columns = ['Este', 'Norte', 'Cota', 'Altura Banco (m)', 
+                         'Altura Falla (m)', 'Desplazamiento Acumulado (mm)',
+                         'Velocidad Promedio (mm/h)', 'Volumen (ton)']
+        
+        for col in numeric_columns:
+            if col in df.columns:
+                df[col] = pd.to_numeric(df[col], errors='coerce')
+        
+        return df
+    
+    def _process_alertas_data(self, df: pd.DataFrame) -> pd.DataFrame:
+        """
+        Procesar datos de alertas de seguridad
+        
+        Args:
+            df (pd.DataFrame): DataFrame crudo de alertas
+            
+        Returns:
+            pd.DataFrame: DataFrame procesado
+        """
+        # Validar columnas esperadas
+        expected_columns = [
+            'id', 'Estatus', 'Vigilante', 'Fecha Declarada', 'Fecha Declarada UTC',
+            'Evento', 'Comportamiento o Velocidad', 'Nivel de Exposición',
+            'Versión Original', 'Zona de Monitoreo', 'Localización General',
+            'Pared', 'Este', 'Norte', 'Cota', 'Observaciones', 'Estado',
+            'Fecha de Cierre', 'Responsable de Cierre', 'Geotécnico Operativo',
+            'Notificación Telefónica', 'Notificación por Correo',
+            'Desplazamiento Últimas 12 hrs. (mm)',
+            'Velocidad Promedio Últimas 12 hrs. (mm/h)',
+            'Velocidad Máxima Últimas 12 hrs. (mm/h)'
+        ]
+        
+        # Verificar que las columnas principales existan
+        missing_columns = [col for col in expected_columns[:10] if col not in df.columns]
+        if missing_columns:
+            logger.warning(f"Columnas faltantes en alertas: {missing_columns}")
+        
+        # Procesar fechas (formato dd/mm/aaaa hh:mm)
+        def parse_date_flexible_alerts(date_series):
+            """Parsear fechas con múltiples formatos posibles para alertas"""
+            if date_series.empty:
+                return date_series
+            
+            # Limpiar caracteres especiales y espacios extra
+            cleaned_series = date_series.astype(str).str.strip()
+            cleaned_series = cleaned_series.str.replace(r'^[^\d]', '', regex=True)
+            
+            # Intentar diferentes formatos
+            formats_to_try = [
+                '%d/%m/%Y %H:%M',
+                '%d/%m/%Y',
+                '%d-%m-%Y %H:%M',
+                '%d-%m-%Y',
+            ]
+            
+            result = pd.Series([pd.NaT] * len(cleaned_series), index=cleaned_series.index)
+            
+            for fmt in formats_to_try:
+                mask = result.isna()
+                if mask.any():
+                    try:
+                        result[mask] = pd.to_datetime(cleaned_series[mask], format=fmt, errors='coerce')
+                    except:
+                        continue
+            
+            # Si aún hay valores sin parsear, intentar formato automático
+            mask = result.isna()
+            if mask.any():
+                result[mask] = pd.to_datetime(cleaned_series[mask], errors='coerce')
+            
+            return result
+        
+        date_columns = ['Fecha Declarada', 'Fecha Declarada UTC', 'Fecha de Cierre']
+        for col in date_columns:
+            if col in df.columns:
+                df[col] = parse_date_flexible_alerts(df[col])
+        
+        # Procesar coordenadas numéricas
+        numeric_columns = ['Este', 'Norte', 'Cota', 
+                         'Desplazamiento Últimas 12 hrs. (mm)',
+                         'Velocidad Promedio Últimas 12 hrs. (mm/h)',
+                         'Velocidad Máxima Últimas 12 hrs. (mm/h)']
+        
+        for col in numeric_columns:
+            if col in df.columns:
+                df[col] = pd.to_numeric(df[col], errors='coerce')
+        
+        return df
+    
 
-            for col in ['Fecha Declarada', 'Fecha Declarada UTC', 'Fecha de Cierre']:
-                if col in df.columns:
-                    df[col] = parse_date_flexible_alerts(df[col])
-
-            numeric_columns = ['Este', 'Norte', 'Cota', 
-                             'Desplazamiento Últimas 12 hrs. (mm)',
-                             'Velocidad Promedio Últimas 12 hrs. (mm/h)',
-                             'Velocidad Máxima Últimas 12 hrs. (mm/h)']
-            for col in numeric_columns:
-                if col in df.columns:
-                    df[col] = pd.to_numeric(df[col], errors='coerce')
-
-            logger.info(f"Alertas (upload) cargadas: {len(df)} registros")
-            return df
-        except Exception as e:
-            logger.error(f"Error al cargar alertas desde upload: {str(e)}")
-            st.error(f"Error al cargar alertas: {str(e)}")
-            return None
     
     def get_data_summary(self, eventos_df: pd.DataFrame, alertas_df: pd.DataFrame) -> dict:
         """
