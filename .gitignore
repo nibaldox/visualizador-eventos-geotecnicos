@@ -1,73 +1,24 @@
-# Archivos de Python
-__pycache__/
-*.py[cod]
-*$py.class
-*.so
-.Python
-build/
-develop-eggs/
-dist/
-downloads/
-eggs/
-.eggs/
-lib/
-lib64/
-parts/
-sdist/
-var/
-wheels/
-pip-wheel-metadata/
-share/python-wheels/
-*.egg-info/
-.installed.cfg
-*.egg
-MANIFEST
-
-# Entornos virtuales
-.env
-.venv
-env/
+# Entornos y artefactos locales
 venv/
-ENV/
-env.bak/
-venv.bak/
-
-# IDEs
-.vscode/
-.idea/
-*.swp
-*.swo
-*~
-
-# Jupyter Notebook
-.ipynb_checkpoints
-
-# Archivos del sistema
-.DS_Store
-.DS_Store?
-._*
-.Spotlight-V100
-.Trashes
-ehthumbs.db
-Thumbs.db
-
-# Archivos de configuración local
-config.local.py
-secrets.json
-.secrets
-
-# Logs
+.env
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
 *.log
-logs/
+.DS_Store
+.ipynb_checkpoints/
+.streamlit/
 
-# Archivos temporales
-temp/
-tmp/
-*.tmp
+# Datos locales (no versionar datos reales)
+data-input/
+!data-input/.gitkeep
 
-# Archivos de datos sensibles (mantener estructura pero no datos reales)
-# data-input/*.xlsx
-# data-output/
+# Archivos grandes de hojas de cálculo
+*.xlsx
+*.xls
 
-# Streamlit
-.streamlit/secrets.toml
+# Otros
+*.coverage
+.coverage*
+htmlcov/

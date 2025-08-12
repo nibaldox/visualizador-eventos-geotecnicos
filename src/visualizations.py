@@ -302,6 +302,9 @@ def create_alerts_scatter(alertas_df: pd.DataFrame):
             
             # Asegurar que el aspect ratio sea igual
             fig.update_yaxes(scaleanchor="x", scaleratio=1)
+            # Grilla fija cada 500 m (gris muy suave)
+            fig.update_xaxes(showgrid=True, gridcolor="#f0f0f0", gridwidth=0.5, dtick=500)
+            fig.update_yaxes(showgrid=True, gridcolor="#f0f0f0", gridwidth=0.5, dtick=500)
             
             # Mostrar gráfico
             st.plotly_chart(fig, use_container_width=True)
@@ -519,6 +522,9 @@ def create_dashboard_events_map(eventos_df: pd.DataFrame):
             
             # Asegurar que el aspect ratio sea igual
             fig.update_yaxes(scaleanchor="x", scaleratio=1)
+            # Grilla fija cada 500 m (gris muy suave)
+            fig.update_xaxes(showgrid=True, gridcolor="#f0f0f0", gridwidth=0.5, dtick=500)
+            fig.update_yaxes(showgrid=True, gridcolor="#f0f0f0", gridwidth=0.5, dtick=500)
             
             with col2:
                 st.plotly_chart(fig, use_container_width=True)
@@ -691,6 +697,9 @@ def create_consolidated_scatter(eventos_df: pd.DataFrame, alertas_df: pd.DataFra
     
     # Asegurar aspect ratio igual
     fig.update_yaxes(scaleanchor="x", scaleratio=1)
+    # Grilla fija cada 500 m (gris muy suave)
+    fig.update_xaxes(showgrid=True, gridcolor="#f0f0f0", gridwidth=0.5, dtick=500)
+    fig.update_yaxes(showgrid=True, gridcolor="#f0f0f0", gridwidth=0.5, dtick=500)
     
     # Mostrar gráfico
     st.plotly_chart(fig, use_container_width=True)
@@ -1134,6 +1143,9 @@ def create_failure_height_analysis(eventos_df: pd.DataFrame):
         
         # Asegurar aspect ratio igual
         fig_scatter.update_yaxes(scaleanchor="x", scaleratio=1)
+        # Grilla fija cada 500 m (gris muy suave)
+        fig_scatter.update_xaxes(showgrid=True, gridcolor="#f0f0f0", gridwidth=0.5, dtick=500)
+        fig_scatter.update_yaxes(showgrid=True, gridcolor="#f0f0f0", gridwidth=0.5, dtick=500)
         
         st.plotly_chart(fig_scatter, use_container_width=True)
     
