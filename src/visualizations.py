@@ -362,6 +362,21 @@ def create_events_scatter(eventos_df: pd.DataFrame):
                     eventos_validos['Tamaño_Plot'] = eventos_validos['Volumen (ton)'].fillna(100)  # Valor por defecto
                     size_column = 'Tamaño_Plot'
             
+            # Crear hover_data dinámicamente
+            hover_data = {
+                'Tipo': True,
+                'Zona monitoreo': True,
+                'Vigilante': True,
+                'Volumen (ton)': ':.0f' if 'Volumen (ton)' in eventos_validos.columns else False,
+                'Velocidad Máxima Últimas 12hrs. (mm/h)': ':.2f' if 'Velocidad Máxima Últimas 12hrs. (mm/h)' in eventos_validos.columns else False,
+                'Este': ':.0f',
+                'Norte': ':.0f'
+            }
+            
+            # Agregar Tamaño_Plot solo si existe
+            if 'Tamaño_Plot' in eventos_validos.columns:
+                hover_data['Tamaño_Plot'] = False  # Ocultar la columna temporal
+            
             # Crear scatter plot
             fig = px.scatter(
                 eventos_validos,
@@ -371,16 +386,7 @@ def create_events_scatter(eventos_df: pd.DataFrame):
                 size=size_column,
                 size_max=25,
                 hover_name='id',
-                hover_data={
-                    'Tipo': True,
-                    'Zona monitoreo': True,
-                    'Vigilante': True,
-                    'Volumen (ton)': ':.0f' if 'Volumen (ton)' in eventos_validos.columns else False,
-                    'Velocidad Máxima Últimas 12hrs. (mm/h)': ':.2f' if 'Velocidad Máxima Últimas 12hrs. (mm/h)' in eventos_validos.columns else False,
-                    'Este': ':.0f',
-                    'Norte': ':.0f',
-                    'Tamaño_Plot': False  # Ocultar la columna temporal
-                },
+                hover_data=hover_data,
                 title="Distribución Espacial de Eventos Geotécnicos en la Mina",
                 color_discrete_map=color_map
             )
@@ -608,10 +614,10 @@ def create_consolidated_scatter(eventos_df: pd.DataFrame, alertas_df: pd.DataFra
                 'Este': alerta['Este'],
                 'Norte': alerta['Norte'],
                 'Tipo_General': 'Alerta/Alarma',
-                'Subtipo': alerta.get('Tipo', 'Sin especificar'),
+                'Subtipo': alerta.get('Estatus', 'Sin especificar'),  # Usar 'Estatus' en lugar de 'Tipo'
                 'ID': alerta.get('id', 'N/A'),
-                'Fecha': alerta.get('Fecha creacion', alerta.get('Fecha cierre', 'N/A')),
-                'Zona': alerta.get('Zona monitoreo', 'N/A'),
+                'Fecha': alerta.get('Fecha Declarada', 'N/A'),  # Usar 'Fecha Declarada' en lugar de 'Fecha creacion'
+                'Zona': alerta.get('Zona de Monitoreo', 'N/A'),  # Usar 'Zona de Monitoreo' en lugar de 'Zona monitoreo'
                 'Vigilante': alerta.get('Vigilante', 'N/A'),
                 'Estado': estado,
                 'Color': color,
@@ -660,7 +666,7 @@ def create_consolidated_scatter(eventos_df: pd.DataFrame, alertas_df: pd.DataFra
     if 'Todas' not in zonas_seleccionadas and zonas_seleccionadas:
         df_filtrado = df_filtrado[df_filtrado['Zona'].isin(zonas_seleccionadas)]
     
-    # Crear gráfico scatter
+    # Crear gráfico scatter con hover estándar
     fig = px.scatter(
         df_filtrado,
         x='Este',

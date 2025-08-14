@@ -106,38 +106,60 @@ def main():
     fecha_inicio = None
     fecha_fin = None
     
-    # Filtro de fechas
+    # Filtro de fechas - considerar tanto eventos como alertas
+    fechas_eventos = pd.Series(dtype='datetime64[ns]')
+    fechas_alertas = pd.Series(dtype='datetime64[ns]')
+    
+    # Obtener fechas de eventos
     if 'Fecha' in eventos_df.columns:
-        # Filtrar fechas válidas (no NaT)
-        fechas_validas = eventos_df['Fecha'].dropna()
+        fechas_eventos = eventos_df['Fecha'].dropna()
+    
+    # Obtener fechas de alertas
+    if 'Fecha Declarada' in alertas_df.columns:
+        fechas_alertas = alertas_df['Fecha Declarada'].dropna()
+    
+    # Combinar todas las fechas para determinar el rango total
+    todas_las_fechas = pd.concat([fechas_eventos, fechas_alertas], ignore_index=True)
+    
+    if len(todas_las_fechas) > 0:
+        fecha_min = todas_las_fechas.min().date()
+        fecha_max = todas_las_fechas.max().date()
         
-        if len(fechas_validas) > 0:
-            fecha_min = fechas_validas.min().date()
-            fecha_max = fechas_validas.max().date()
-            
-            fecha_inicio = st.sidebar.date_input(
-                "Fecha inicio",
-                value=fecha_min,
-                min_value=fecha_min,
-                max_value=fecha_max
-            )
-            
-            fecha_fin = st.sidebar.date_input(
-                "Fecha fin",
-                value=fecha_max,
-                min_value=fecha_min,
-                max_value=fecha_max
-            )
-        else:
-            # Si no hay fechas válidas, usar fechas por defecto
-            fecha_inicio = st.sidebar.date_input(
-                "Fecha inicio",
-                value=datetime.now().date() - timedelta(days=365)
-            )
-            fecha_fin = st.sidebar.date_input(
-                "Fecha fin",
-                value=datetime.now().date()
-            )
+        # Mostrar información de debug
+        st.sidebar.info(f"📅 Rango total de fechas: {fecha_min} a {fecha_max}")
+        if len(fechas_eventos) > 0:
+            st.sidebar.info(f"📊 Eventos: {len(fechas_eventos)} registros")
+        if len(fechas_alertas) > 0:
+            st.sidebar.info(f"🚨 Alertas: {len(fechas_alertas)} registros")
+        
+        fecha_inicio = st.sidebar.date_input(
+            "Fecha inicio",
+            value=fecha_min,
+            min_value=fecha_min,
+            max_value=fecha_max
+        )
+        
+        fecha_fin = st.sidebar.date_input(
+            "Fecha fin",
+            value=fecha_max,
+            min_value=fecha_min,
+            max_value=fecha_max
+        )
+    else:
+        # Si no hay fechas válidas, usar fechas por defecto
+        st.sidebar.warning("⚠️ No se encontraron fechas válidas en los datos")
+        fecha_inicio = st.sidebar.date_input(
+            "Fecha inicio",
+            value=datetime.now().date() - timedelta(days=365)
+        )
+        fecha_fin = st.sidebar.date_input(
+            "Fecha fin",
+            value=datetime.now().date()
+        )
+    
+    # Inicializar variables de filtro
+    zonas_seleccionadas = []
+    tipos_seleccionados = []
     
     # Filtro por zona
     if 'Zona monitoreo' in eventos_df.columns:
@@ -162,14 +184,14 @@ def main():
     alertas_filtradas = alertas_df.copy()
     
     # Aplicar filtros de fecha para eventos
-    if 'Fecha' in eventos_df.columns and len(fechas_validas) > 0 and fecha_inicio is not None and fecha_fin is not None:
+    if 'Fecha' in eventos_df.columns and len(fechas_eventos) > 0 and fecha_inicio is not None and fecha_fin is not None:
         eventos_filtrados = eventos_filtrados[
             (eventos_filtrados['Fecha'] >= pd.to_datetime(fecha_inicio)) &
             (eventos_filtrados['Fecha'] <= pd.to_datetime(fecha_fin))
         ]
     
     # Aplicar filtros de fecha para alertas
-    if 'Fecha Declarada' in alertas_df.columns and fecha_inicio is not None and fecha_fin is not None:
+    if 'Fecha Declarada' in alertas_df.columns and len(fechas_alertas) > 0 and fecha_inicio is not None and fecha_fin is not None:
         alertas_filtradas = alertas_filtradas[
             (alertas_filtradas['Fecha Declarada'] >= pd.to_datetime(fecha_inicio)) &
             (alertas_filtradas['Fecha Declarada'] <= pd.to_datetime(fecha_fin))
@@ -218,7 +240,10 @@ def main():
         
         with col3:
             if 'Detectado por Sistema' in eventos_filtrados.columns:
-                detectados = eventos_filtrados['Detectado por Sistema'].value_counts().get('Si', 0)
+                # Buscar tanto 'Sí' (con tilde) como 'Si' (sin tilde) para mayor compatibilidad
+                detectados = eventos_filtrados['Detectado por Sistema'].value_counts().get('Sí', 0)
+                if detectados == 0:
+                    detectados = eventos_filtrados['Detectado por Sistema'].value_counts().get('Si', 0)
                 st.metric(
                     label="Eventos Detectados",
                     value=detectados,

@@ -49,17 +49,18 @@ class DataLoader:
             
             # Cargar datos según el tipo de archivo
             if file_name.endswith(('.xlsx', '.xls')):
-                df = pd.read_excel(uploaded_file)
+                # Forzar que la columna 'id' se cargue como texto para evitar problemas de formato
+                df = pd.read_excel(uploaded_file, dtype={'id': str})
             elif file_name.endswith('.csv'):
-                df = pd.read_csv(uploaded_file)
+                df = pd.read_csv(uploaded_file, dtype={'id': str})
             elif file_name.endswith('.txt'):
                 # Intentar CSV con delimitador de tabulación primero
                 try:
-                    df = pd.read_csv(uploaded_file, sep='\t')
+                    df = pd.read_csv(uploaded_file, sep='\t', dtype={'id': str})
                 except:
                     # Si falla, intentar con otros delimitadores comunes
                     uploaded_file.seek(0)  # Resetear posición del archivo
-                    df = pd.read_csv(uploaded_file, sep=';')
+                    df = pd.read_csv(uploaded_file, sep=';', dtype={'id': str})
             else:
                 raise ValueError(f"Formato de archivo no soportado: {file_name}")
             
@@ -93,17 +94,18 @@ class DataLoader:
             
             # Cargar datos según el tipo de archivo
             if file_name.endswith(('.xlsx', '.xls')):
-                df = pd.read_excel(uploaded_file)
+                # Forzar que la columna 'id' se cargue como texto para evitar problemas de formato
+                df = pd.read_excel(uploaded_file, dtype={'id': str})
             elif file_name.endswith('.csv'):
-                df = pd.read_csv(uploaded_file)
+                df = pd.read_csv(uploaded_file, dtype={'id': str})
             elif file_name.endswith('.txt'):
                 # Intentar CSV con delimitador de tabulación primero
                 try:
-                    df = pd.read_csv(uploaded_file, sep='\t')
+                    df = pd.read_csv(uploaded_file, sep='\t', dtype={'id': str})
                 except:
                     # Si falla, intentar con otros delimitadores comunes
                     uploaded_file.seek(0)  # Resetear posición del archivo
-                    df = pd.read_csv(uploaded_file, sep=';')
+                    df = pd.read_csv(uploaded_file, sep=';', dtype={'id': str})
             else:
                 raise ValueError(f"Formato de archivo no soportado: {file_name}")
             
@@ -220,7 +222,7 @@ class DataLoader:
                 df[col] = process_numeric_column(df[col])
         
         # Validar y procesar columnas de texto específicas
-        text_columns = ['id', 'Tipo', 'Vigilante', 'Zona monitoreo', 'Pared', 'Detectado por Sistema', 'Radar Principal', 'Mecanismos falla']
+        text_columns = ['Tipo', 'Vigilante', 'Zona monitoreo', 'Pared', 'Detectado por Sistema', 'Radar Principal', 'Mecanismos falla']
         
         for col in text_columns:
             if col in df.columns:
@@ -229,17 +231,25 @@ class DataLoader:
                 # Reemplazar 'nan' strings con NaN real
                 df[col] = df[col].replace(['nan', 'None', ''], pd.NaT)
         
-        # Validación específica para columnas críticas
+        # Procesamiento especial para la columna 'id' para preservar formato exacto
         if 'id' in df.columns:
-            # Verificar formato de ID (año.número)
+            # Asegurar que la columna 'id' sea texto y preservar formato exacto
+            df['id'] = df['id'].astype(str).str.strip()
+            # Reemplazar valores vacíos con NaN
+            df['id'] = df['id'].replace(['nan', 'None', ''], pd.NaT)
+            # Verificar formato de ID (año.número) y mostrar advertencia si hay problemas
             invalid_ids = df[~df['id'].str.match(r'^\d{4}\.\d+$', na=False)]
             if not invalid_ids.empty:
-                logger.warning(f"Se encontraron {len(invalid_ids)} IDs con formato inválido")
+                logger.warning(f"Se encontraron {len(invalid_ids)} IDs con formato inválido: {invalid_ids['id'].tolist()}")
         
         if 'Detectado por Sistema' in df.columns:
-            # Normalizar valores de Sí/No
-            df['Detectado por Sistema'] = df['Detectado por Sistema'].str.capitalize()
-            df['Detectado por Sistema'] = df['Detectado por Sistema'].replace({'Si': 'Sí', 'NO': 'No', 'YES': 'Sí', 'yes': 'Sí', 'no': 'No'})
+            # Normalizar valores de Sí/No - convertir todo a minúsculas primero para evitar problemas de mayúsculas
+            df['Detectado por Sistema'] = df['Detectado por Sistema'].astype(str).str.lower().str.strip()
+            # Reemplazar valores con normalización completa
+            df['Detectado por Sistema'] = df['Detectado por Sistema'].replace({
+                'si': 'Sí', 'sí': 'Sí', 'yes': 'Sí', 'y': 'Sí', 'true': 'Sí', 'verdadero': 'Sí',
+                'no': 'No', 'n': 'No', 'false': 'No', 'falso': 'No'
+            })
         
         logger.info(f"Eventos procesados: {len(df)} registros")
         return df
@@ -338,7 +348,7 @@ class DataLoader:
                 df[col] = process_numeric_column_alerts(df[col])
         
         # Validar y procesar columnas de texto específicas
-        text_columns = ['id', 'Estatus', 'Vigilante', 'Zona de Monitoreo', 'Pared', 'Estado', 
+        text_columns = ['Estatus', 'Vigilante', 'Zona de Monitoreo', 'Pared', 'Estado', 
                        'Notificación Telefónica', 'Notificación por Correo']
         
         for col in text_columns:
@@ -348,12 +358,16 @@ class DataLoader:
                 # Reemplazar 'nan' strings con NaN real
                 df[col] = df[col].replace(['nan', 'None', ''], pd.NaT)
         
-        # Validaciones específicas para columnas críticas de alertas
+        # Procesamiento especial para la columna 'id' para preservar formato exacto
         if 'id' in df.columns:
-            # Verificar formato de ID (año.número)
+            # Asegurar que la columna 'id' sea texto y preservar formato exacto
+            df['id'] = df['id'].astype(str).str.strip()
+            # Reemplazar valores vacíos con NaN
+            df['id'] = df['id'].replace(['nan', 'None', ''], pd.NaT)
+            # Verificar formato de ID (año.número) y mostrar advertencia si hay problemas
             invalid_ids = df[~df['id'].str.match(r'^\d{4}\.\d+$', na=False)]
             if not invalid_ids.empty:
-                logger.warning(f"Se encontraron {len(invalid_ids)} IDs de alertas con formato inválido")
+                logger.warning(f"Se encontraron {len(invalid_ids)} IDs de alertas con formato inválido: {invalid_ids['id'].tolist()}")
         
         if 'Estado' in df.columns:
             # Normalizar valores de estado
